@@ -46,9 +46,17 @@ class RedisStateManager:
             message_key = f"message:{channel}:{user_id}:{message.message_id}"
             messages_list_key = f"messages:{channel}:{user_id}"
 
-            # Save message data
+            # Idempotency guard: skip duplicates (common with provider retries).
             message_data = message.model_dump_json()
-            await self.redis.set(message_key, message_data, ex=7*24*3600)  # 7 days TTL
+            saved = await self.redis.set(
+                message_key,
+                message_data,
+                ex=7*24*3600,  # 7 days TTL
+                nx=True
+            )
+            if not saved:
+                logger.info(f"Skipping duplicate message {message.message_id} for {channel}:{user_id}")
+                return True
 
             # Add to messages list
             await self.redis.lpush(messages_list_key, message.message_id)
@@ -178,12 +186,8 @@ class RedisStateManager:
     async def get_all_conversations(self) -> List[ConversationData]:
         """Get all active conversations"""
         try:
-            # Find all conversation keys
-            pattern = "conversation:*"
-            keys = await self.redis.keys(pattern)
-
             conversations = []
-            for key in keys:
+            async for key in self.redis.scan_iter(match="conversation:*"):
                 data = await self.redis.get(key)
                 if data:
                     conversations.append(ConversationData.parse_raw(data))

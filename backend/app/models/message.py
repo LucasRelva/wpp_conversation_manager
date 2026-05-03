@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
 
@@ -26,8 +26,8 @@ class NormalizedMessage(BaseModel):
     message_id: str
     text: str
     message_type: MessageType = MessageType.TEXT
-    timestamp: datetime = None
-    metadata: dict = {}
+    timestamp: Optional[datetime] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     class Config:
         use_enum_values = True
@@ -42,8 +42,8 @@ class ConversationData(BaseModel):
     last_message: Optional[str] = None
     last_message_timestamp: Optional[datetime] = None
     assigned_to: Optional[str] = None  # Agent ID
-    created_at: datetime = None
-    updated_at: datetime = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     message_count: int = 0
 
     class Config:

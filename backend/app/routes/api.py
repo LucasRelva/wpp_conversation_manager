@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import List
 from app.models.message import (
     NormalizedMessage,
@@ -9,8 +9,9 @@ from app.models.message import (
 from app.services.conversation_manager import ConversationManager
 from app.services.state_manager import RedisStateManager
 from app.adapters.registry import adapter_registry
+from app.security import require_agent_api_key, verify_webhook_secret
 import logging
-import json
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,11 @@ def set_services(cm: ConversationManager, sm: RedisStateManager, ws_mgr):
 
 
 @router.post("/webhook/{channel}")
-async def webhook_handler(channel: str, payload: dict) -> dict:
+async def webhook_handler(
+    channel: str,
+    payload: dict,
+    request: Request
+) -> dict:
     """
     Accept webhook messages from any channel.
     
@@ -41,6 +46,8 @@ async def webhook_handler(channel: str, payload: dict) -> dict:
     etc.
     """
     try:
+        await verify_webhook_secret(request)
+
         # Get adapter for this channel
         adapter = adapter_registry.get_adapter(channel)
 
@@ -55,7 +62,9 @@ async def webhook_handler(channel: str, payload: dict) -> dict:
             "type": "new_message",
             "channel": channel,
             "user_id": message.user_id,
+            "message_id": message.message_id,
             "text": message.text,
+            "user_name": message.user_name,
             "timestamp": message.timestamp.isoformat() if message.timestamp else None
         })
 
@@ -142,7 +151,8 @@ async def get_conversation(channel: str, user_id: str) -> dict:
 async def assume_conversation(
     channel: str,
     user_id: str,
-    assignment: ConversationAssignment
+    assignment: ConversationAssignment,
+    _: None = Depends(require_agent_api_key)
 ) -> dict:
     """Assume (assign agent to) a conversation"""
     try:
@@ -181,7 +191,8 @@ async def send_agent_message(
     channel: str,
     user_id: str,
     reply: AgentReply,
-    agent_id: str = "agent_1"  # Should come from auth in production
+    agent_id: str,
+    _: None = Depends(require_agent_api_key)
 ) -> dict:
     """Send message from agent to user"""
     try:
@@ -200,8 +211,10 @@ async def send_agent_message(
             "type": "message_sent",
             "channel": channel,
             "user_id": user_id,
+            "message_id": f"agent_{agent_id}_{int(time.time() * 1000)}",
             "agent_id": agent_id,
-            "text": reply.text
+            "text": reply.text,
+            "timestamp": None
         })
 
         return {
@@ -221,7 +234,8 @@ async def send_agent_message(
 async def close_conversation(
     channel: str,
     user_id: str,
-    closing_message: dict = None
+    closing_message: dict = None,
+    _: None = Depends(require_agent_api_key)
 ) -> dict:
     """Close a conversation"""
     try:

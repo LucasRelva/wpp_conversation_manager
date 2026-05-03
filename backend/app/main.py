@@ -62,10 +62,13 @@ def create_app() -> FastAPI:
         lifespan=lifespan
     )
 
+    cors_origins = os.getenv("CORS_ORIGINS", "*")
+    allow_origins = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
+
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # Configure appropriately in production
+        allow_origins=allow_origins or ["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -78,10 +81,30 @@ def create_app() -> FastAPI:
     # Health check
     @app.get("/health")
     async def health_check():
+        redis_ok = False
+        if state_manager and state_manager.redis:
+            try:
+                redis_ok = bool(await state_manager.redis.ping())
+            except Exception:
+                redis_ok = False
+
+        status = "healthy" if redis_ok else "degraded"
         return {
-            "status": "healthy",
-            "service": "channel-agnostic-handoff-dashboard"
+            "status": status,
+            "service": "channel-agnostic-handoff-dashboard",
+            "redis": "up" if redis_ok else "down"
         }
+
+    @app.get("/ready")
+    async def readiness_check():
+        if not state_manager or not state_manager.redis:
+            return {"ready": False, "reason": "redis_not_initialized"}
+
+        try:
+            await state_manager.redis.ping()
+            return {"ready": True}
+        except Exception:
+            return {"ready": False, "reason": "redis_unavailable"}
 
     return app
 

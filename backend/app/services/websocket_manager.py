@@ -30,11 +30,21 @@ class WebSocketManager:
         """Remove a WebSocket connection"""
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
+
+        empty_agents = []
+        for agent_id, connections in self.agent_connections.items():
+            if websocket in connections:
+                connections.discard(websocket)
+            if not connections:
+                empty_agents.append(agent_id)
+        for agent_id in empty_agents:
+            del self.agent_connections[agent_id]
+
         logger.info(f"Client disconnected. Total connections: {len(self.active_connections)}")
 
     async def broadcast(self, message: dict):
         """Broadcast message to all connected clients"""
-        for connection in self.active_connections:
+        for connection in list(self.active_connections):
             try:
                 await connection.send_json(message)
             except Exception as e:

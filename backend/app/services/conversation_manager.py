@@ -30,11 +30,13 @@ class ConversationManager:
         logger.info(f"Handling incoming message from {message.channel}:{message.user_id}")
 
         # Save message
-        await self.state_manager.save_message(
+        save_success = await self.state_manager.save_message(
             message.channel,
             message.user_id,
             message
         )
+        if not save_success:
+            raise RuntimeError("Failed to persist incoming message")
 
         # Get or create conversation
         conversation = await self.state_manager.get_conversation(
@@ -135,7 +137,12 @@ class ConversationManager:
                 text=text,
                 metadata={"agent_id": agent_id, "is_outgoing": True}
             )
-            await self.state_manager.save_message(channel, user_id, agent_message)
+            stored = await self.state_manager.save_message(channel, user_id, agent_message)
+            if not stored:
+                logger.error(
+                    f"Failed to persist outgoing message from {agent_id} to {channel}:{user_id}"
+                )
+                return False
 
         return success
 
