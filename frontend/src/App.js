@@ -6,15 +6,14 @@ import ConversationList from './components/ConversationList';
 import ChatView from './components/ChatView';
 import './App.css';
 
-const AGENT_ID = 'agent_1'; // In production, this would come from auth
+const AGENT_ID = process.env.REACT_APP_AGENT_ID || 'agent_1';
 
 function App() {
       const [conversations, setConversations] = useState([]);
       const [selectedConversation, setSelectedConversation] = useState(null);
       const [messages, setMessages] = useState([]);
-      const [loading, setLoading] = useState(true);
       const [error, setError] = useState(null);
-      const [isAssigning, setIsAssigning] = useState(false);
+      const [assigningConversationKey, setAssigningConversationKey] = useState(null);
       const [loadingMessages, setLoadingMessages] = useState(false);
 
       // WebSocket connection
@@ -23,7 +22,6 @@ function App() {
       // Fetch all conversations
       const fetchConversations = useCallback(async () => {
             try {
-                  setLoading(true);
                   setError(null);
                   const response = await api.getConversations();
                   setConversations(response.data);
@@ -31,7 +29,6 @@ function App() {
                   console.error('Error fetching conversations:', err);
                   setError('Failed to load conversations');
             } finally {
-                  setLoading(false);
             }
       }, []);
 
@@ -61,6 +58,19 @@ function App() {
             }
       }, [selectedConversation, fetchConversationMessages]);
 
+      const appendMessageIfMissing = useCallback((nextMessage) => {
+            setMessages((prev) => {
+                  const alreadyExists = prev.some((msg) =>
+                        msg.message_id && nextMessage.message_id
+                              ? msg.message_id === nextMessage.message_id
+                              : msg.text === nextMessage.text && msg.timestamp === nextMessage.timestamp
+                  );
+
+                  if (alreadyExists) return prev;
+                  return [...prev, nextMessage];
+            });
+      }, []);
+
       // Handle WebSocket messages
       useEffect(() => {
             if (wsMessages.length === 0) return;
@@ -75,13 +85,13 @@ function App() {
                         selectedConversation.user_id === lastMessage.user_id
                   ) {
                         const newMsg = {
-                              message_id: `msg_${Date.now()}`,
+                              message_id: lastMessage.message_id || `${lastMessage.type}_${lastMessage.channel}_${lastMessage.user_id}_${lastMessage.timestamp || Date.now()}`,
                               text: lastMessage.text,
-                              timestamp: lastMessage.timestamp,
+                              timestamp: lastMessage.timestamp || new Date().toISOString(),
                               user_name: lastMessage.user_name || lastMessage.agent_id,
                               metadata: lastMessage.agent_id ? { agent_id: lastMessage.agent_id } : {}
                         };
-                        setMessages(prev => [...prev, newMsg]);
+                        appendMessageIfMissing(newMsg);
                   }
             } else if (lastMessage.type === 'conversation_assigned') {
                   // Update conversation assignment
@@ -93,12 +103,13 @@ function App() {
                         )
                   );
             }
-      }, [wsMessages, selectedConversation]);
+      }, [wsMessages, selectedConversation, appendMessageIfMissing]);
 
       // Handle assume conversation
       const handleAssume = async (conversation) => {
+            const conversationKey = `${conversation.channel}-${conversation.user_id}`;
             try {
-                  setIsAssigning(true);
+                  setAssigningConversationKey(conversationKey);
                   await api.assumeConversation(conversation.channel, conversation.user_id, AGENT_ID);
 
                   // Update local state
@@ -116,7 +127,7 @@ function App() {
                   console.error('Error assuming conversation:', err);
                   setError('Failed to assume conversation');
             } finally {
-                  setIsAssigning(false);
+                  setAssigningConversationKey(null);
             }
       };
 
@@ -140,12 +151,30 @@ function App() {
                         user_name: `Agent: ${AGENT_ID}`,
                         metadata: { agent_id: AGENT_ID }
                   };
-                  setMessages(prev => [...prev, newMsg]);
+                  appendMessageIfMissing(newMsg);
             } catch (err) {
                   console.error('Error sending message:', err);
                   setError('Failed to send message');
             }
       };
+
+      const handleCloseConversation = useCallback((conversationToClose) => {
+            setConversations((prev) =>
+                  prev.map((conv) =>
+                        conv.channel === conversationToClose.channel && conv.user_id === conversationToClose.user_id
+                              ? { ...conv, status: 'CLOSED' }
+                              : conv
+                  )
+            );
+
+            if (
+                  selectedConversation &&
+                  selectedConversation.channel === conversationToClose.channel &&
+                  selectedConversation.user_id === conversationToClose.user_id
+            ) {
+                  setSelectedConversation((prev) => prev ? { ...prev, status: 'CLOSED' } : prev);
+            }
+      }, [selectedConversation]);
 
       return (
             <div className="flex h-screen bg-gray-100">
@@ -156,7 +185,7 @@ function App() {
                               selectedConversation={selectedConversation}
                               onSelectConversation={setSelectedConversation}
                               onAssume={handleAssume}
-                              isAssigning={isAssigning}
+                              assigningConversationKey={assigningConversationKey}
                               agentId={AGENT_ID}
                         />
                   </div>
@@ -211,6 +240,7 @@ function App() {
                               conversation={selectedConversation}
                               messages={messages}
                               onSendMessage={handleSendMessage}
+                              onCloseConversation={handleCloseConversation}
                               isLoading={loadingMessages}
                         />
                   </div>

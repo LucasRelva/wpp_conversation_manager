@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Send, Phone, X, MoreVertical, Clock } from 'lucide-react';
+import { Send, MoreVertical } from 'lucide-react';
 import api from '../services/api';
 
 const getChannelIcon = (channel) => {
@@ -12,7 +12,7 @@ const getChannelIcon = (channel) => {
   return icons[channel] || '📱';
 };
 
-const ChatView = ({ conversation, messages, onSendMessage, isLoading }) => {
+const ChatView = ({ conversation, messages, onSendMessage, onCloseConversation, isLoading }) => {
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -75,7 +75,7 @@ const ChatView = ({ conversation, messages, onSendMessage, isLoading }) => {
                 onClick={async () => {
                   await api.closeConversation(conversation.channel, conversation.user_id);
                   setShowMenu(false);
-                  // Refresh would happen via parent
+                  onCloseConversation(conversation);
                 }}
                 className="w-full px-4 py-2 text-left hover:bg-red-50 text-red-600"
               >
@@ -102,7 +102,7 @@ const ChatView = ({ conversation, messages, onSendMessage, isLoading }) => {
 
             return (
               <div
-                key={idx}
+                key={msg.message_id || `${msg.timestamp || 'no-ts'}-${idx}`}
                 className={`flex ${isAgent ? 'justify-end' : 'justify-start'}`}
               >
                 <div
@@ -137,7 +137,12 @@ const ChatView = ({ conversation, messages, onSendMessage, isLoading }) => {
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
               placeholder="Type a message..."
               disabled={isSending}
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"

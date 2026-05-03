@@ -1,6 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { MessageCircle, MessageSquare, Clock, CheckCircle, AlertCircle, Settings } from 'lucide-react';
-import api from '../services/api';
+import React, { useState } from 'react';
+import { MessageCircle, MessageSquare, Clock } from 'lucide-react';
 
 const getChannelIcon = (channel) => {
   const icons = {
@@ -27,7 +26,7 @@ const ConversationList = ({
   selectedConversation, 
   onSelectConversation,
   onAssume,
-  isAssigning,
+  assigningConversationKey,
   agentId 
 }) => {
   const [filter, setFilter] = useState('all'); // all, waiting, active
@@ -58,7 +57,9 @@ const ConversationList = ({
             { id: 'active', label: 'Active', icon: MessageSquare }
           ].map(tab => {
             const Icon = tab.icon;
-            const count = groupedByStatus[tab.id === 'all' ? 'waiting' : tab.id].length;
+            const count = tab.id === 'all'
+              ? filteredConversations.length
+              : groupedByStatus[tab.id].length;
             return (
               <button
                 key={tab.id}
@@ -91,9 +92,12 @@ const ConversationList = ({
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
-            {filteredConversations.map(conv => (
+            {filteredConversations.map(conv => {
+              const conversationKey = `${conv.channel}-${conv.user_id}`;
+              const isAssigning = assigningConversationKey === conversationKey;
+              return (
               <div
-                key={`${conv.channel}-${conv.user_id}`}
+                key={conversationKey}
                 className={`p-4 cursor-pointer transition hover:bg-gray-50 ${
                   selectedConversation?.channel === conv.channel &&
                   selectedConversation?.user_id === conv.user_id
@@ -137,7 +141,8 @@ const ConversationList = ({
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

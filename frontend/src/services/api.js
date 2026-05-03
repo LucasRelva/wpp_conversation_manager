@@ -7,6 +7,16 @@ const client = axios.create({
       timeout: 10000,
 });
 
+const AGENT_API_KEY = process.env.REACT_APP_AGENT_API_KEY;
+
+client.interceptors.request.use((config) => {
+      if (AGENT_API_KEY) {
+            config.headers['X-Agent-API-Key'] = AGENT_API_KEY;
+            config.headers['Authorization'] = `Bearer ${AGENT_API_KEY}`;
+      }
+      return config;
+});
+
 export const api = {
       // Conversations
       getConversations: () => client.get('/conversations'),
@@ -17,7 +27,7 @@ export const api = {
             client.post(`/conversations/${channel}/${userId}/assume`, { agent_id: agentId }),
 
       // Send message
-      sendMessage: (channel, userId, text, agentId = 'agent_1') =>
+      sendMessage: (channel, userId, text, agentId) =>
             client.post(`/conversations/${channel}/${userId}/message`, { text }, {
                   params: { agent_id: agentId }
             }),

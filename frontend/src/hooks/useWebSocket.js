@@ -4,12 +4,23 @@ const WS_BASE_URL = process.env.REACT_APP_WS_URL || 'ws://localhost:8000';
 
 export const useWebSocket = (agentId) => {
       const ws = useRef(null);
+      const reconnectTimeout = useRef(null);
+      const shouldReconnect = useRef(true);
       const [isConnected, setIsConnected] = useState(false);
       const [messages, setMessages] = useState([]);
 
       useEffect(() => {
             // Don't connect if no agent ID
             if (!agentId) return;
+
+            shouldReconnect.current = true;
+
+            const clearReconnectTimeout = () => {
+                  if (reconnectTimeout.current) {
+                        clearTimeout(reconnectTimeout.current);
+                        reconnectTimeout.current = null;
+                  }
+            };
 
             const connectWebSocket = () => {
                   try {
@@ -43,8 +54,12 @@ export const useWebSocket = (agentId) => {
                         ws.current.onclose = () => {
                               console.log('WebSocket disconnected');
                               setIsConnected(false);
+
+                              if (!shouldReconnect.current) return;
+
                               // Attempt reconnection after 3 seconds
-                              setTimeout(connectWebSocket, 3000);
+                              clearReconnectTimeout();
+                              reconnectTimeout.current = setTimeout(connectWebSocket, 3000);
                         };
                   } catch (error) {
                         console.error('Failed to create WebSocket:', error);
@@ -55,6 +70,8 @@ export const useWebSocket = (agentId) => {
             connectWebSocket();
 
             return () => {
+                  shouldReconnect.current = false;
+                  clearReconnectTimeout();
                   if (ws.current) {
                         ws.current.close();
                   }
