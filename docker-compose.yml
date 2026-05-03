@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # Redis for conversation state management
+  redis:
+    image: redis:7-alpine
+    container_name: handoff_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - handoff_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # FastAPI Backend
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: handoff_api
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./backend:/app
+    networks:
+      - handoff_network
+    command: python run.py
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: handoff_frontend
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000/api
+      - REACT_APP_WS_URL=ws://localhost:8000
+    networks:
+      - handoff_network
+
+volumes:
+  redis_data:
+
+networks:
+  handoff_network:
+    driver: bridge
