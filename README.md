@@ -347,11 +347,12 @@ For production deployment:
 
 1. **Authentication**: Implement agent authentication in the frontend
 2. **HTTPS**: Use HTTPS for API and WSS for WebSocket
-3. **API Keys**: Add authentication to webhook endpoints
-4. **Rate Limiting**: Implement rate limiting on webhooks
-5. **CORS**: Configure CORS properly (currently `*` for dev)
-6. **Env Secrets**: Use proper secret management for API tokens
-7. **Redis**: Secure Redis with password authentication
+3. **API Keys**: Set `AGENT_API_KEY` and send it via `Authorization: Bearer <key>` or `X-Agent-API-Key`
+4. **Webhook Signatures**: Set `WEBHOOK_SECRET` and validate `X-Webhook-Signature` (`sha256=<hmac>`)
+5. **Rate Limiting**: Configure `AGENT_RATE_LIMIT_PER_MINUTE` and `WEBHOOK_RATE_LIMIT_PER_MINUTE`
+6. **CORS**: Configure `CORS_ORIGINS` (comma-separated allowlist)
+7. **Env Secrets**: Use proper secret management for API tokens
+8. **Redis**: Secure Redis with password authentication
 
 ## 📊 Monitoring
 

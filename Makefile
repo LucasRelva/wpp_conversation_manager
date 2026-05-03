@@ -1,4 +1,4 @@
-.PHONY: help setup start stop logs rebuild test clean docs dev
+.PHONY: help setup start stop restart rebuild dev logs logs-api logs-frontend logs-redis test test-api ps clean clean-all docs shell-api shell-redis watch-frontend watch-backend
 
 help:
 	@echo "Handoff Dashboard - Make Commands"
@@ -30,6 +30,9 @@ help:
 	@echo "  make ps             - Show running containers"
 	@echo "  make docs           - Open API documentation"
 	@echo "  make shell-api      - Open shell in API container"
+	@echo "  make shell-redis    - Open Redis CLI in Redis container"
+	@echo "  make watch-frontend - Run frontend locally (no Docker)"
+	@echo "  make watch-backend  - Run backend locally (no Docker)"
 
 setup:
 	@echo "Setting up Handoff Dashboard..."
